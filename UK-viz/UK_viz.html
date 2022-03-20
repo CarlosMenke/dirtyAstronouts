@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<!-- Load d3.js -->
+<script src="https://d3js.org/d3.v6.js"></script>
+
+<h1>Dirty Data Center Transfer</h1>
+<!-- Create an element where the map will take place -->
+<svg id="my_dataviz" width="1000" height="1000"></svg>
+
+
+<style>
+text {
+  font-family: Verdana;
+}
+h1 {
+  font-family: Verdana;
+}
+</style>
+
+<script>
+// The svg
+const svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+// Map and projection
+const projection = d3.geoMercator()
+    .center([-2, 52])                // GPS of location to zoom on
+    .scale(2000)                     // This is like the zoom
+    .translate([ width/2, height/2 ])
+
+const colors = ['#a6cee3','#1f78b4']
+
+const coordinates = { "datacenters" : [
+  { "name" : "London",      "x" : -0.129072, "y" : 51.490096, "r" : 12 },
+  { "name" : "Manchester",  "x" : -2.241392, "y" : 53.478261, "r" : 12 },
+  { "name" : "Cork",        "x" : -8.467858, "y" : 51.894713, "r" : 12 },
+  { "name" : "Dublin",      "x" : -6.260038, "y" : 53.345448, "r" : 12 },
+  { "name" : "Galway",      "x" : -9.046345, "y" : 53.272806, "r" : 12 },
+  { "name" : "Swansea",     "x" : -3.944735, "y" : 51.618960, "r" : 12 },
+  { "name" : "Aberdeen",    "x" : -2.092070, "y" : 57.146902, "r" : 12 },
+  { "name" : "Glasgow",     "x" : -4.251005, "y" : 55.854995, "r" : 12 }
+]}
+
+//TODO: Get this data from API
+
+
+async function getDataFromAPI() {
+  let response = await fetch("http://127.0.0.1:4433/", {
+    "method" : "GET",
+    "headers" : {
+      "Content-Type" : "text/plain",
+      "cors" : "no-cors"
+    }
+  })
+                        .then((res) => res.text())
+                        //.then((text) => alert(text))
+  return data
+}
+
+function httpGet(theUrl) {
+  let xmlHttpReq = new XMLHttpRequest();
+  xmlHttpReq.open("GET", theUrl, false);
+  xmlHttpReq.send(null);
+  return xmlHttpReq.responseText;
+}
+
+
+function parseData() {
+  var dataArray = []
+  data = httpGet('http://localhost:4433').split('|');
+  if (data[0] == ""){
+    return dataArray
+  }
+  for (let i = 0; i < data.length; i++) {
+    dataArray.push(JSON.parse(data[i]))
+  }
+  return dataArray
+}
+
+setInterval(() => {
+  vmTransfers = { "vmTransfers" : parseData()}
+  drawVMTransfers(vmTransfers.vmTransfers)
+  drawEnergySavings(10)
+  console.log(vmTransfers)
+}, 5000)
+
+
+var vmTransfers = { "vmTransfers" : parseData()}
+
+var vmTransferCounter = -1
+var lastVMTransferCounter = 0
+
+
+// Load external data and boot
+d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson").then( function(data) {
+
+    // Filter data
+    data.features = data.features.filter(d => d.properties.name=="England" || d.properties.name=="Scotland" || d.properties.name=="Ireland")
+
+    // Draw the map
+    svg.append("g")
+        .selectAll("path")
+        .data(data.features)
+        .join("path")
+          .attr("fill", function(d) {
+            if (d.properties.name=="England") {
+              return colors[0]
+            } else {
+              return colors[1]
+            }
+          })
+          .attr("d", d3.geoPath()
+              .projection(projection)
+          )
+        .style("stroke", "black")
+
+
+    svg.selectAll("circle")
+      .data(coordinates.datacenters)
+      .join("circle")
+        .attr("cx", d => convertx(d.x))
+        .attr("cy", d => converty(d.y))
+        .attr("r", d => d.r)
+        .attr("fill", "#e6550d")
+        .attr("stroke", "black")
+
+ })
+
+ function drawVMTransfers(vmTransfers) {
+   svg.selectAll("dot")
+     .data(vmTransfers)
+       .join("circle")
+         .attr("id", function(d) {
+           vmTransferCounter++
+           return String('circle' + vmTransferCounter)
+         })
+         .attr("cx", d => convertx(d.source.long))
+         .attr("cy", d => converty(d.source.lat))
+         .attr("r", d => d.vm_shifts/100)
+         .attr("fill", "#31a354")
+         .attr("stroke", "black")
+
+
+  for (i = lastVMTransferCounter; i <= vmTransferCounter; i++) {
+    svg.selectAll('#circle' + i)
+     .transition()
+     .duration(5000)
+     .attr("cx", d => convertx(d.destination.long))
+     .attr("cy", d => converty(d.destination.lat))
+  }
+ }
+
+ function drawEnergySavings(savings) {
+   svg.append("text")
+    .text("Total energy savings: " + savings + " kWh")
+    .attr("x", 20)
+    .attr("y", 50)
+ }
+
+  function convertx(x) {
+    return x*(235/6.73)+569.2566203566
+  }
+
+  function converty(y) {
+    return y*(-370/6.0178)+3693.299210675
+  }
+
+</script>

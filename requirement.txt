@@ -1,0 +1,7 @@
+xmltodict
+geopy
+django
+requests
+flask
+asyncio
+flask_cors
